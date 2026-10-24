@@ -1,0 +1,107 @@
+name: project-workflow
+version: 1
+description: Explore and document a change before implementation, with one implementation note per task
+
+artifacts:
+  - id: brainstorm
+    generates: brainstorm.md
+    description: Exploration findings and decisions confirmed with the user
+    template: brainstorm.md
+    instruction: |
+      Record the problem, goals, constraints, approaches considered, selected direction,
+      and unresolved questions from the actual conversation. Distinguish user decisions
+      from assumptions. Ask about unresolved questions that would change the proposal;
+      do not invent product requirements or technical choices. This is a planning artifact.
+    requires: []
+
+  - id: proposal
+    generates: proposal.md
+    description: Why the change is needed and what it will change
+    template: proposal.md
+    instruction: |
+      Use brainstorm.md as context. Explain why this change is needed, the changes
+      proposed, the new or modified capabilities, and impact. Name capabilities for
+      durable behavior using kebab-case paths. Every listed capability needs a delta
+      spec at specs/<capability-path>/spec.md. Keep implementation detail in design.md.
+      If the change is only tooling or documentation and changes no system behavior,
+      explicitly record that and use skip_specs: true in the change metadata.
+    requires:
+      - brainstorm
+
+  - id: specs
+    generates: "specs/**/*.md"
+    description: Testable behavior changes, one delta spec per affected capability
+    template: spec.md
+    instruction: |
+      Write one specs/<capability-path>/spec.md for every capability in proposal.md.
+      Describe externally visible behavior, inputs, outcomes, and error cases.
+      New capabilities begin with a meaningful Purpose section, then use
+      ADDED Requirements. For existing capabilities, use ADDED, MODIFIED, REMOVED,
+      or RENAMED Requirements as appropriate. Each requirement uses a
+      ### Requirement: heading, normative SHALL or MUST text, and at least one
+      #### Scenario: heading with WHEN and THEN bullets. Under MODIFIED, include
+      the complete updated requirement block. Do not put implementation steps here.
+      Specs may be skipped only when the change metadata declares skip_specs: true.
+    requires:
+      - proposal
+
+  - id: design
+    generates: design.md
+    description: Technical approach and decisions
+    template: design.md
+    instruction: |
+      Explain how the proposed behavior will be built. Record architecture,
+      component boundaries, data flow, alternatives, decisions, risks, and
+      verification approach. Resolve choices that would change the specs or
+      task breakdown before writing tasks. For a trivial change, keep this brief.
+      Do not invent product behavior or dependencies that the user has not chosen.
+    requires:
+      - proposal
+      - specs
+
+  - id: tasks
+    generates: tasks.md
+    description: Single source of truth for implementation progress
+    template: tasks.md
+    instruction: |
+      Break the design into dependency-ordered groups. Every executable task is a
+      checkbox line formatted - [ ] X.Y Description; verification: observable
+      result or exact command. Give each task one stable X.Y identifier.
+      Each task must have exactly one matching implementation/X.Y-<slug>.md note.
+      Keep completion status only in tasks.md; the notes explain how to execute.
+      Include tests and relevant documentation in the task they belong to.
+    requires:
+      - specs
+      - design
+
+  - id: implementation
+    generates: "implementation/*.md"
+    description: One concrete implementation note for each task in tasks.md
+    template: implementation.md
+    instruction: |
+      Create exactly one file per checkbox task in tasks.md, named
+      implementation/X.Y-<short-kebab-case-slug>.md using the same task ID.
+      Each note must identify its matching task, relevant spec scenario,
+      target files or interfaces if known, ordered implementation steps,
+      verification command or observable check, expected result, and dependencies.
+      If a file path or interface genuinely depends on a later discovery, state
+      the exact discovery step and do not invent one. Do not mark tasks complete
+      or implement code while preparing these notes. Refer back to tasks.md for
+      progress, and keep all task checkboxes there. After writing all notes, run
+      node openspec/scripts/check-implementation-notes.mjs <change-name>
+      from the project root and fix every mismatch before reporting readiness.
+    requires:
+      - tasks
+
+apply:
+  requires: [implementation]
+  tracks: tasks.md
+  instruction: |
+    Before implementation, run
+    node openspec/scripts/check-implementation-notes.mjs <change-name>
+    from the project root. Stop and repair missing, duplicate, or extra notes
+    before any code edits. Re-run it if tasks.md or implementation notes change.
+    Read the brainstorm, proposal, specs, design, tasks, and matching
+    implementation note before each task. Work through tasks.md in order,
+    verify each task, and update its checkbox in tasks.md. Keep the notes as
+    planning references rather than a second progress tracker.

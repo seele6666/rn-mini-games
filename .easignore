@@ -3,11 +3,13 @@ node_modules/
 dist/
 web-build/
 verification/
+artifacts/
 .git/
 .agents/
 .codex/
 openspec/
 docs/
+memory/
 **/*.test.ts
 **/*.test.tsx
 *.apk
