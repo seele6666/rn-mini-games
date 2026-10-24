@@ -1,126 +1,143 @@
-# 小游戏合集 · Expo / React Native
+# RN Mini Games
 
-个人 Android 小游戏集合与 React Native 学习作品，使用 Expo SDK 57、Expo Router 和 TypeScript，通过 OpenSpec 和 Superpowers 推进开发。
+**An offline mini-game collection built with React Native, Expo and TypeScript.**
 
-- **2048**：经典4×4滑动合并、计分、达到2048后继续挑战，以及本地进度保存。
-- **斗地主**：完全离线的三人叫地主／抢地主，一名真人与两名电脑；简单、普通、困难、非常困难四档，提示由玩家确认，独立保存对局，仅显示阵营胜负。展示全桌最近三手完整出牌，提供内置替代配乐、音量与震动设置及点击反馈。Android牌桌横屏，首页和2048竖屏。
+一个持续开发中的移动端小游戏合集，目前包含 **2048** 和 **斗地主（Dou Dizhu）**。项目围绕游戏规则建模、移动端交互、离线状态持久化与自动化测试展开，优先面向 Android，同时提供 Web 开发预览。
 
-斗地主的策略基准、新APK与真机验收证据见 [斗地主验收记录](docs/doudizhu-validation.md)。
+## Games
 
-## 开发与检查
+| 游戏 | 已实现功能 |
+| --- | --- |
+| **2048** | 4×4 棋盘、四向滑动与合并计分、2048 达成提示及继续挑战、终局判断、进度恢复 |
+| **斗地主** | 三人离线对局（1 名玩家 + 2 名电脑）、叫地主与抢地主、牌型识别及出牌校验、四档电脑策略、提示、对局恢复、最近三手记录、音乐与震动设置 |
 
-需要 Node.js（当前使用 24）和 npm。在 PowerShell 中：
+**2048**
 
-```powershell
-npm install
+- 将棋盘移动、合并、随机生成与终局判断封装在独立的 TypeScript 规则模块中。
+- 使用原生手势处理滑动，并处理棋盘操作与页面滚动之间的手势竞争。
+- 使用本地存储保存棋盘、分数和胜利状态，支持退出后恢复。
+
+**斗地主**
+
+- 实现 54 张牌的三人对局状态机，覆盖叫牌、抢地主、出牌、压牌、不出与胜负结算。
+- 提供简单、普通、困难、非常困难四档策略；高难度使用受计算预算约束的采样与模拟搜索。
+- 电脑决策仅接收当前座位可见的信息；玩家提示只建议操作，不会自动替玩家出牌。
+- 支持对局存档恢复、最近三手完整出牌展示、离线配乐及可调整的震动反馈。
+- Android 中首页与 2048 使用竖屏，斗地主牌桌使用横屏。
+
+> 当前仍在迭代：功能代码与自动化测试不等于所有 Android 真机体验均已验收。具体结果见下方验证记录。
+
+## Engineering Highlights
+
+### 1. Game logic separated from UI
+
+按功能划分模块，将规则计算、会话生命周期、持久化与 UI 分开管理。2048 的核心规则不依赖 React；斗地主通过独立的规则引擎处理合法动作和状态转换，便于测试与后续扩展。
+
+### 2. Recoverable game sessions
+
+使用 `AsyncStorage` 保存两个游戏的独立进度。斗地主存档会校验结构与操作历史，并通过重放动作核对最终状态；保存任务按顺序写入，避免异步写入覆盖较新的进度。
+
+斗地主的异步电脑行动还会校验 `gameId`、`dealId`、`revision` 和任务有效性，降低切后台、离开页面或重开游戏后旧计算结果误更新当前对局的风险。
+
+### 3. Observable and testable AI decisions
+
+斗地主将玩家可见信息抽象为 `PlayerObservation`，电脑决策与玩家提示共用策略入口。项目包含启发式策略、受节点/时间/工作量预算约束的搜索，以及使用固定随机种子进行的策略对局基准。
+
+策略表现仍在调优中；基准结果和局限性记录在 [斗地主验证文档](docs/doudizhu-validation.md)，不将桌面基准等同于手机实际性能。
+
+### 4. Automated testing and Android validation
+
+使用 **Jest** 和 **React Native Testing Library** 测试规则引擎、存档、会话、组件及部分用户操作，并维护独立的 Android 真机验收清单。
+
+## Tech Stack
+
+- **App:** Expo SDK 57, React Native, Expo Router, TypeScript
+- **Interaction:** React Native Gesture Handler
+- **Storage:** AsyncStorage
+- **Media:** Expo Audio, Expo Haptics
+- **Testing:** Jest, React Native Testing Library
+- **Build:** EAS Build (Android APK)
+
+## Project Structure
+
+```text
+src/
+├── app/                         # Expo Router 路由与游戏入口
+├── features/
+│   ├── game2048/
+│   │   ├── core/                 # 规则与棋盘计算
+│   │   ├── session/              # 游戏会话与状态协调
+│   │   ├── persistence/          # 存档与写入队列
+│   │   └── ui/                   # 棋盘、手势与页面组件
+│   └── doudizhu/
+│       ├── engine.ts             # 对局状态机
+│       ├── rules.ts              # 牌型与合法出牌规则
+│       ├── ai/                   # 策略、搜索与基准测试
+│       ├── storage.ts            # 存档校验和历史重放
+│       ├── useDoudizhu.ts        # 会话与异步任务协调
+│       └── GameScreen.tsx        # 斗地主牌桌
+└── theme.ts
+```
+
+详细模块说明参见 [2048 模块文档](src/features/game2048/README.md)。需求和设计变更保存在 [OpenSpec](openspec/changes/) 中。
+
+## Getting Started
+
+需要 **Node.js 和 npm**（项目开发记录使用 Node.js 24）。
+
+```bash
+git clone https://github.com/seele6666/rn-mini-games.git
+cd rn-mini-games
+npm ci
 npm start
-# 手机安装与 SDK 57 对应的 Expo Go，电脑与手机在同一网络，扫描终端二维码。
-# 已连接 Android 调试设备或启动模拟器时也可以：
-npm run android
+```
 
+使用兼容 Expo SDK 57 的开发客户端，或在已配置 Android 模拟器/设备后运行：
+
+```bash
+npm run android
+```
+
+浏览器开发预览：
+
+```bash
+npm run web
+```
+
+代码检查与测试：
+
+```bash
 npm run typecheck
 npm test -- --runInBand
 ```
 
-`npm run web` 提供浏览器预览。浏览器和 Android 分别保存自己的进度；Web 检查不能替代 Android 验收。
+> Web 预览与 Jest 测试不能替代 Android 真机验收；各平台的本地存档互不共享。
 
-## 构建独立 Android APK
+### Build an Android APK
 
-使用个人 Expo 账号登录，首次构建会提示创建或关联 EAS 项目及生成 Android 签名。联网构建，游戏安装后可以离线运行。
+仓库配置了 EAS `preview` 构建配置，用于生成可独立安装的 Android APK：
 
-```powershell
+```bash
 npx eas-cli@latest login
-npx eas-cli@latest whoami
 npx eas-cli@latest build -p android --profile preview
 ```
 
-如果构建中的 Git 克隆提示 `dubious ownership`（例如目录由沙箱用户创建），可以使用 EAS 的直接目录上传方式。在项目根目录的 PowerShell 运行：
+构建需要 Expo 账号及可用的 EAS 项目权限。自行 Fork 构建时，可能需要重新关联自己的 EAS 项目。参见 [Expo APK 构建说明](https://docs.expo.dev/build-reference/apk/)。
 
-```powershell
-$env:EAS_NO_VCS = '1'
-$env:EAS_PROJECT_ROOT = (Get-Location).Path
-npx eas-cli@latest build -p android --profile preview
-```
+## Validation Status
 
-这两个变量只作用于当前终端。上传内容由 `.easignore` 控制；项目已关联个人 EAS 项目，Android 签名由 EAS 管理。
+- **2048:** 仓库记录了 1.0.1 版本的 Android 真机回归，包括滑动、计分、返回导航和存档恢复。
+- **斗地主:** 已包含规则、策略、组件和会话相关自动化测试及基准记录；仓库文档中的 **1.2.0 Android 真机验收项仍有待完成**。
+- **Release:** 当前仓库尚未提供可直接下载的最新完整版 APK；本 README 不将旧版本的本地文件路径作为公开下载链接。
 
-应用显示名为“小游戏合集”，包名为 `com.seele.minigames`。`eas.json` 的 `preview.android.buildType` 明确为 `apk`，构建结束后从 EAS 输出的链接下载 `.apk`，传到手机并允许安装该来源的应用。它包含游戏代码，不依赖 Expo Go 或 Metro 开发服务器。[Expo 官方 APK 构建说明](https://docs.expo.dev/build-reference/apk/)
+相关记录：[2048 Android 验收](docs/android-validation.md) · [斗地主策略与验收](docs/doudizhu-validation.md)
 
-安装后关闭开发服务器和 Expo Go，断开网络，按 [Android 验收清单](docs/android-validation.md) 复核。重新安装或清除应用数据可能清空存档；正常关闭与重新打开会恢复已保存的棋盘、分数和胜利标记。
+## Roadmap
 
-### 当前 APK
+- 完成包含最新斗地主功能的 Android APK 真机回归。
+- 补充游戏截图、录屏与可访问的安装包发布页。
+- 继续优化斗地主策略与交互体验，并补充可复现的性能数据。
 
-2026-10-21 已本地构建 **1.1.0（versionCode 3，ARM64）**：[本地 APK](artifacts/minigames-1.1.0-android.apk)，大小39.61 MiB，包含2048和斗地主。已用原发布签名签署并核验包名、版本、签名、对齐及内置游戏bundle；手机离线、方向、手势与存档验收待测。构建和校验记录见 [斗地主验收记录](docs/doudizhu-validation.md)。
+## License
 
-### 历史 APK：1.0.1
-
-2026-10-04 的手势修复版 preview 构建已成功：[下载 1.0.1 APK](https://expo.dev/artifacts/eas/3ScvjQ0EkoePDBM4_LbMgI5569QtdfdL7Q7Ba8dlXbo.apk)。本地副本为 `artifacts/minigames-1.0.1-android.apk`，大小 93.79 MiB，Android versionCode 为 2，可覆盖安装上一版。修复棋盘与页面滚动的手势竞争，以及快速滑动时完整位移的计算；用户已确认 33 项真机验收完成，快速滑动缺陷已解决。构建记录、用户反馈与 SHA-256 见 [Android 验收清单](docs/android-validation.md)。
-
-首版变更已[归档](openspec/changes/archive/2026-10-04-add-game-hub-2048/tasks.md)，正式规格位于 `openspec/specs/`：小游戏首页、经典 2048、本地存档和独立 APK。
-
-## 代码位置
-
-```text
-src/app/index.tsx                 # 小游戏首页
-src/app/games/2048.tsx            # 游戏路由
-src/app/games/doudizhu.tsx        # 斗地主路由、焦点及无历史系统返回
-src/features/game2048/
-  core/                          # 棋盘规则、随机生成、胜利与终局判断
-  persistence/                   # 存档校验、读写与顺序保存队列
-  session/                       # 加载、游戏操作和保存反馈
-  ui/                            # 页面、棋盘、手势 Hook、按钮与弹窗
-  README.md                      # 职责、依赖与文件归属说明
-src/features/doudizhu/
-  cards.ts / rules.ts / engine.ts # 实体牌、牌型和纯对局状态机
-  ai/                            # 公平观察、策略、受预算的采样模拟与基准
-  storage.ts / saveQueue.ts      # 独立存档、重放校验和串行写入
-  useDoudizhu.ts                 # 恢复、保存、前后台及迟到任务保护
-  Hand.tsx / GameScreen.tsx      # 手牌选中与横屏牌桌
-  RecentPlays.tsx                # 全桌最近三手及独立横向浏览
-  settings.ts / useDoudizhuMedia.ts # 独立设置、内置配乐与轻震动
-```
-
-规则与存档测试使用确定性输入；组件测试验证真实会话和用户操作。测试配置依据 [Expo Jest 文档](https://docs.expo.dev/develop/unit-testing/)。
-
-## OpenSpec 工作目录
-
-```text
-.
-├── AGENTS.md                     # 项目工作入口
-├── .codex/
-│   └── skills/                   # 按用途整理的导航与规范
-│       ├── superpowers/          # 已安装插件的技能入口
-│       ├── development-rules/    # 用户开发规范预留位置
-│       └── opsx/
-│           ├── explore/          # 探索入口
-│           ├── propose/          # 提案入口
-│           ├── apply/            # 实施入口
-│           └── archive/          # 归档入口
-├── .agents/
-│   └── skills/                   # OpenSpec 生成、Codex 实际加载的技能
-│       ├── openspec-explore/
-│       ├── openspec-propose/
-│       ├── openspec-apply-change/
-│       ├── openspec-archive-change/
-│       ├── openspec-sync-specs/
-│       └── openspec-update-change/
-└── openspec/
-    ├── config.yaml               # 默认使用 rn-2048-workflow
-    ├── schemas/
-    │   └── rn-2048-workflow/     # 制品顺序、编写规范和 Markdown 模板
-    ├── specs/                    # 正式规格
-    └── changes/                  # 进行中的变更
-        └── archive/              # 已归档变更
-```
-
-## 使用说明
-
-- [OPSX 四步入口](.codex/skills/opsx/README.md)
-- [Superpowers 技能入口](.codex/skills/superpowers/README.md)
-- [用户开发规范位置](.codex/skills/development-rules/README.md)
-
-`.codex/skills/` 中目前存放导航说明，不包含重复的 `SKILL.md`。完整 OPSX 技能仍保留在 `.agents/skills/`，Superpowers 由已安装插件提供。
-
-后续可以先提出游戏想法，使用 `openspec-explore` 探索，再按 propose、apply、archive 推进。项目默认采用 [rn-2048-workflow](openspec/schemas/rn-2048-workflow/schema.yaml)：每次变更会准备 `brainstorm.md`、`proposal.md`、`specs/<能力>/spec.md`、`design.md`、`tasks.md` 和 `implementation/X.Y-<任务名>.md`。任务状态只在 `tasks.md` 中维护。
-
-Explore 讨论不会自动保存文件。跨对话继续时，可要求把结论写入该变更的 `brainstorm.md`。进入 Apply 或 Archive 前，运行 `node openspec/scripts/check-implementation-notes.mjs <变更名>` 检查任务与逐任务说明是否一一对应。
+项目代码以 [MIT License](LICENSE) 开源。内置音乐 **“Monkeys Spinning Monkeys” — Kevin MacLeod** 根据 **CC BY 4.0** 使用，署名和来源见 [音频说明](assets/audio/README.md)；第三方素材不因本项目的 MIT 许可而改变其原有授权。
